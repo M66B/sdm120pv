@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from gi.repository import GLib  # pyright: ignore[reportMissingImports]
+from gi.repository import GLib
 import platform
 import logging
 import sys
@@ -83,7 +83,7 @@ class DbusSdm120PvService:
 
         self._dbusservice.add_path('/Latency', None)
         self._dbusservice.add_path('/ErrorCode', 0)
-        self._dbusservice.add_path('/Position', position)  # AC output
+        self._dbusservice.add_path('/Position', position)
         self._dbusservice.add_path('/StatusCode', 0)  # Dummy path so VRM detects us as a PV-inverter
 
         for path, settings in self._paths.items():
@@ -139,7 +139,6 @@ class DbusSdm120PvService:
 
         logging.debug("PV: {:.1f} W - {:.1f} V - {:.1f} A".format(p, v, c))
 
-        # is only displayed for Fronius inverters (product ID 0xA142) in GUI but displayed in VRM portal
         # if power above 10 W, set status code to 7 (running)
         if self._dbusservice['/Ac/Power'] >= 10:
             if self._dbusservice['/StatusCode'] != 7:
@@ -163,8 +162,8 @@ class DbusSdm120PvService:
 def main():
     _thread.daemon = True  # allow the program to quit
 
-    from dbus.mainloop.glib import DBusGMainLoop  # pyright: ignore[reportMissingImports]
-    # Have a mainloop, so we can send/receive asynchronous calls to and from dbus
+    from dbus.mainloop.glib import DBusGMainLoop
+
     DBusGMainLoop(set_as_default=True)
 
     config_file = (os.path.dirname(os.path.realpath(__file__))) + "/config.ini"
@@ -223,9 +222,9 @@ def main():
         deviceinstance = int(config['DEFAULT']['device_instance']),
         paths = paths_dbus,
         serial_port = config['DEFAULT']['serial_port'],
-	#productname
+        #productname
         customname = config['DEFAULT']['device_name'],
-	#connection
+        #connection
         position = int(config['DEFAULT']['inverter_position']),
         offset = float(config['DEFAULT']['meter_offset'])
         )

@@ -14,3 +14,5 @@ ln -s /data/etc/sdm120pv/service /service/sdm120pv
 # nano /etc/udev/rules.d/serial-starter.rules
 # #ACTION=="add", ENV{ID_BUS}=="usb", ENV{ID_VENDOR_ID}=="1a86", ENV{ID_MODEL_ID}=="7523", ENV{VE_SERVICE}="cgwacs:default"
 # ACTION=="add", ENV{ID_BUS}=="usb", ENV{ID_MODEL}=="USB_Serial" ENV{VE_SERVICE}="ignore"
+
+# 1a86:7523 = QinHeng Electronics HL-340 USB-Serial adapter
