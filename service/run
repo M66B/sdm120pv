@@ -1,0 +1,4 @@
+#!/bin/sh
+echo "*** starting sdm120pv ***"
+exec 2>&1
+exec /data/etc/sdm120pv/sdm120pv.py
