@@ -135,7 +135,7 @@ class DbusSdm120PvService:
         self._dbusservice['/Ac/L1/Frequency'] = round(f, 2) if f is not None else None
         self._dbusservice['/Ac/L1/PowerFactor'] = round(p, 2) if p is not None else None
         self._dbusservice['/Ac/L1/Energy/Forward'] = round(i, 2) if i is not None else None
-        self._dbusservice['/Ac/L1/Energy/Used'] = round(e, 2) if e is not None else None
+        self._dbusservice['/Ac/L1/Energy/Reverse'] = round(e, 2) if e is not None else None
 
         logging.debug("PV: {:.1f} W - {:.1f} V - {:.1f} A".format(p, v, c))
 
@@ -198,7 +198,7 @@ def main():
         '/Ac/L1/Frequency': {'initial': None, 'textformat': _hz},
         '/Ac/L1/PowerFactor': {'initial': None, 'textformat': _pf},
         '/Ac/L1/Energy/Forward': {'initial': None, 'textformat': _kwh},
-        '/Ac/L1/Energy/Used': {'initial': None, 'textformat': _kwh},
+        '/Ac/L1/Energy/Reverse': {'initial': None, 'textformat': _kwh},
     })
 
     paths_dbus.update({

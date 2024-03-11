@@ -1,4 +1,9 @@
 #!/bin/bash
+
+chmod +x sdm120pv.py
+chmod +x service/run
+chmod +x service/log/run
+
 ln -s /data/etc/sdm120pv/service /service/sdm120pv
 
 #svstat /service/sdm120pv
