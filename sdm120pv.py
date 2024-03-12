@@ -27,6 +27,8 @@ class DbusSdm120PvService:
         offset = 0.0
     ):
 
+        self._offset = offset;
+
         #https://minimalmodbus.readthedocs.io/en/stable/usage.html
         self._instrument = minimalmodbus.Instrument(serial_port, 1)
         self._instrument.serial.baudrate = 9600
@@ -117,7 +119,9 @@ class DbusSdm120PvService:
             e = self._instrument.read_float(0x004A, 4, 2) #Export active
             t = self._instrument.read_float(0x0156, 4, 2) #Total active
 
-            i = i + offset
+            logging.debug("PV: {:.1f} W - {:.1f} V - {:.1f} A".format(a, v, c))
+
+            i = i + self._offset
         except Exception:
             exception_type, exception_object, exception_traceback = sys.exc_info()
             file = exception_traceback.tb_frame.f_code.co_filename
@@ -137,16 +141,12 @@ class DbusSdm120PvService:
         self._dbusservice['/Ac/L1/Energy/Forward'] = round(i, 2) if i is not None else None
         self._dbusservice['/Ac/L1/Energy/Reverse'] = round(e, 2) if e is not None else None
 
-        logging.debug("PV: {:.1f} W - {:.1f} V - {:.1f} A".format(p, v, c))
-
-        # if power above 10 W, set status code to 7 (running)
-        if self._dbusservice['/Ac/Power'] >= 10:
+        if self._dbusservice['/Ac/Power'] is not None and self._dbusservice['/Ac/Power'] >= 10:
             if self._dbusservice['/StatusCode'] != 7:
-                self._dbusservice['/StatusCode'] = 7
-        # else set status code to 8 (standby)
+                self._dbusservice['/StatusCode'] = 7 #running
         else:
             if self._dbusservice['/StatusCode'] != 8:
-                self._dbusservice['/StatusCode'] = 8
+                self._dbusservice['/StatusCode'] = 8 #standby
 
         # increment UpdateIndex - to show that new data is available
         index = self._dbusservice['/UpdateIndex'] + 1
