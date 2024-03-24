@@ -14,11 +14,10 @@ ln -s /data/etc/sdm120pv/service /service/sdm120pv
 #https://github.com/mr-manuel/venus-os_dbus-mqtt-pv
 
 # nano /data/rc.local
-# ln -s /data/etc/sdm120pv/service /service/sdm120pv
+#!/bin/bash
+#ln -s /data/etc/sdm120pv/service /service/sdm120pv
+#mount -o remount,rw /
+#sed -i 's/^.*1a86.*/ACTION=="add", ENV{ID_BUS}=="usb", ENV{ID_MODEL}=="USB_Serial" ENV{VE_SERVICE}="ignore"/' /etc/udev/rules.d/serial-starter.rules
+#mount -o remount,ro /
 
-# mount -o remount,rw /
-# nano /etc/udev/rules.d/serial-starter.rules
-# #ACTION=="add", ENV{ID_BUS}=="usb", ENV{ID_VENDOR_ID}=="1a86", ENV{ID_MODEL_ID}=="7523", ENV{VE_SERVICE}="cgwacs:default"
-# ACTION=="add", ENV{ID_BUS}=="usb", ENV{ID_MODEL}=="USB_Serial" ENV{VE_SERVICE}="ignore"
-# 1a86:7523 = QinHeng Electronics HL-340 USB-Serial adapter
-# mount -o remount,ro /
+#/opt/victronenergy/serial-starter/stop-tty.sh /dev/ttyUSB1
