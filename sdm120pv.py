@@ -27,6 +27,8 @@ class DbusSdm120PvService:
         offset = 0.0
     ):
 
+        logging.basicConfig(level=logging.WARNING)
+
         self._offset = offset;
 
         #https://minimalmodbus.readthedocs.io/en/stable/usage.html
@@ -119,14 +121,16 @@ class DbusSdm120PvService:
             e = self._instrument.read_float(0x004A, 4, 2) #Export active
             t = self._instrument.read_float(0x0156, 4, 2) #Total active
 
-            logging.debug("PV: {:.1f} W - {:.1f} V - {:.1f} A".format(a, v, c))
-
             i = i + self._offset
+
+            logging.info("PV: {:.1f} W - {:.1f} V - {:.1f} A - {:.1f} Import".format(a, v, c, i))
+
         except Exception:
             exception_type, exception_object, exception_traceback = sys.exc_info()
             file = exception_traceback.tb_frame.f_code.co_filename
             line = exception_traceback.tb_lineno
             print(f"Exception occurred: {repr(exception_object)} of type {exception_type} in {file} line #{line}")
+            logging.error(f"Exception occurred: {repr(exception_object)} of type {exception_type} in {file} line #{line}")
 
         self._dbusservice['/Ac/Power'] = round(a, 2) if a is not None else None
         self._dbusservice['/Ac/Current'] = round(c, 2) if c is not None else None
