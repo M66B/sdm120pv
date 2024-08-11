@@ -13,6 +13,9 @@ sys.path.insert(1, os.path.join(os.path.dirname(__file__), 'ext'))
 from vedbus import VeDbusService
 import minimalmodbus
 
+import paho.mqtt.client
+import ssl
+
 class DbusSdm120PvService:
     def __init__(
         self,
@@ -24,7 +27,11 @@ class DbusSdm120PvService:
         customname = 'SDM120 PV',
         connection = 'SDM120 PV service',
         position = 1,
-        offset = 0.0
+        offset = 0.0,
+        mqtt_host = 'localhost',
+        mqtt_port = 8883,
+        mqtt_username = '',
+        mqtt_password = ''
     ):
 
         logging.basicConfig(level=logging.WARNING)
@@ -101,6 +108,32 @@ class DbusSdm120PvService:
 
         GLib.timeout_add(1000, self._update)
 
+        self.east = 0
+        self.west = 0
+
+        logging.info("MQTT: connecting")
+        self._mqtt_client = paho.mqtt.client.Client('victron_pv')
+        self._mqtt_client.tls_set(cert_reqs = ssl.CERT_NONE)
+        self._mqtt_client.tls_insecure_set(True)
+        self._mqtt_client.username_pw_set(mqtt_username, password = mqtt_password)
+        self._mqtt_client.connect(mqtt_host, port = mqtt_port)
+        self._mqtt_client.on_connect = self._mqtt_on_connect
+        self._mqtt_client.on_message = self._mqtt_on_message
+        self._mqtt_client.loop_start()
+
+    def _mqtt_on_connect(self, client, userdata, rc, args):
+        logging.info("MQTT: connected")
+        self._mqtt_client.subscribe('enphase/production/inverter_122327091421_production')
+        self._mqtt_client.subscribe('enphase/production/inverter_122327093955_production')
+
+    def _mqtt_on_message(self, client, userdata, message):
+        val = float(message.payload)
+        if message.topic == 'enphase/production/inverter_122327091421_production':
+            self.east = val
+        elif message.topic == 'enphase/production/inverter_122327093955_production':
+            self.west = val
+        logging.info("PV: %s=%s east=%f west=%f" % (message.topic, message.payload, self.east, self.west))
+
     def _update(self):
         v = None
         c = None
@@ -122,6 +155,9 @@ class DbusSdm120PvService:
             t = self._instrument.read_float(0x0156, 4, 2) #Total active
 
             i = i + self._offset
+
+            a = a + self.east + self.west
+            c = c + (self.east + self.west) / v
 
             logging.info("PV: {:.1f} W - {:.1f} V - {:.1f} A - {:.1f} Import".format(a, v, c, i))
 
@@ -230,7 +266,11 @@ def main():
         customname = config['DEFAULT']['device_name'],
         #connection
         position = int(config['DEFAULT']['inverter_position']),
-        offset = float(config['DEFAULT']['meter_offset'])
+        offset = float(config['DEFAULT']['meter_offset']),
+        mqtt_host = config['DEFAULT']['mqtt_host'],
+        mqtt_port = int(config['DEFAULT']['mqtt_port']),
+        mqtt_username = config['DEFAULT']['mqtt_username'],
+        mqtt_password = config['DEFAULT']['mqtt_password']
         )
 
     logging.info('Connected to dbus and switching over to GLib.MainLoop() (= event based)')
