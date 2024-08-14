@@ -127,12 +127,19 @@ class DbusSdm120PvService:
         self._mqtt_client.subscribe('enphase/production/inverter_122327093955_production')
 
     def _mqtt_on_message(self, client, userdata, message):
-        val = float(message.payload)
-        if message.topic == 'enphase/production/inverter_122327091421_production':
-            self.east = val
-        elif message.topic == 'enphase/production/inverter_122327093955_production':
-            self.west = val
-        logging.info("PV: %s=%s east=%f west=%f" % (message.topic, message.payload, self.east, self.west))
+        try:
+             val = float(message.payload)
+             if message.topic == 'enphase/production/inverter_122327091421_production':
+                 self.east = val
+             elif message.topic == 'enphase/production/inverter_122327093955_production':
+                 self.west = val
+             logging.info("PV: %s=%s east=%f west=%f" % (message.topic, message.payload, self.east, self.west))
+        except Exception:
+            exception_type, exception_object, exception_traceback = sys.exc_info()
+            file = exception_traceback.tb_frame.f_code.co_filename
+            line = exception_traceback.tb_lineno
+            print(f"Exception occurred: {repr(exception_object)} of type {exception_type} in {file} line #{line}")
+            logging.error(f"Exception occurred: {repr(exception_object)} of type {exception_type} in {file} line #{line}")
 
     def _update(self):
         v = None
