@@ -8,6 +8,8 @@ import os
 import _thread
 import serial
 import configparser
+import dbus
+import dbus.service
 
 sys.path.insert(1, os.path.join(os.path.dirname(__file__), 'ext'))
 from vedbus import VeDbusService
@@ -16,16 +18,28 @@ import minimalmodbus
 import paho.mqtt.client
 import ssl
 
+class SystemBus(dbus.bus.BusConnection):
+    def __new__(cls):
+        return dbus.bus.BusConnection.__new__(cls, dbus.bus.BusConnection.TYPE_SYSTEM)
+
+class SessionBus(dbus.bus.BusConnection):
+    def __new__(cls):
+        return dbus.bus.BusConnection.__new__(cls, dbus.bus.BusConnection.TYPE_SESSION)
+
+def dbusconnection():
+    return SessionBus() if 'DBUS_SESSION_BUS_ADDRESS' in os.environ else SystemBus()
+
 class DbusSdm120PvService:
     def __init__(
         self,
-        servicename,
-        deviceinstance,
+        deviceinstance1,
+        deviceinstance2,
         paths,
         serial_port,
-        productname = 'SDM120 PV',
-        customname = 'SDM120 PV',
-        connection = 'SDM120 PV service',
+        productname1 = 'PV house',
+        productname2 = 'PV barn',
+        max_power1 = 2400,
+        max_power2 = 600,
         position = 1,
         offset = 0.0,
         mqtt_host = 'localhost',
@@ -35,6 +49,7 @@ class DbusSdm120PvService:
     ):
 
         logging.basicConfig(level=logging.WARNING)
+        #logging.basicConfig(level=logging.INFO)
 
         self._offset = offset;
 
@@ -73,21 +88,21 @@ class DbusSdm120PvService:
         #30343 Total Active Energy kWh 0156
         #30345 Total Reactive Energy kVArh 0158
 
-        self._dbusservice = VeDbusService(servicename)
+        self._dbusservice = VeDbusService('com.victronenergy.pvinverter.sdm120_pv_' + str(deviceinstance1), dbusconnection())
         self._paths = paths
 
-        logging.debug("%s /DeviceInstance = %d" % (servicename, deviceinstance))
+        logging.debug("DeviceInstance = %d" % (deviceinstance1))
 
         # Create the management objects
         self._dbusservice.add_path('/Mgmt/ProcessName', __file__)
         self._dbusservice.add_path('/Mgmt/ProcessVersion', 'Unknown version, and running on Python ' + platform.python_version())
-        self._dbusservice.add_path('/Mgmt/Connection', connection)
+        self._dbusservice.add_path('/Mgmt/Connection', productname1 + ' service')
 
         # Create the mandatory objects
-        self._dbusservice.add_path('/DeviceInstance', deviceinstance)
+        self._dbusservice.add_path('/DeviceInstance', deviceinstance1)
         self._dbusservice.add_path('/ProductId', 0xFFFF)
-        self._dbusservice.add_path('/ProductName', productname)
-        self._dbusservice.add_path('/CustomName', customname)
+        self._dbusservice.add_path('/ProductName', productname1)
+        self._dbusservice.add_path('/CustomName', productname1)
         self._dbusservice.add_path('/FirmwareVersion', '0.1')
         # self._dbusservice.add_path('/HardwareVersion', '')
         self._dbusservice.add_path('/Connected', 1)
@@ -105,6 +120,40 @@ class DbusSdm120PvService:
                 writeable = True,
                 onchangecallback = self._handlechangedvalue
                 )
+
+        self._dbusservice['/Ac/MaxPower'] = max_power1
+
+        self._dbusservice_aux = VeDbusService('com.victronenergy.pvinverter.sdm120_pv_' + str(deviceinstance2), dbusconnection())
+
+        # Create the management objects
+        self._dbusservice_aux.add_path('/Mgmt/ProcessName', __file__)
+        self._dbusservice_aux.add_path('/Mgmt/ProcessVersion', 'Unknown version, and running on Python ' + platform.python_version())
+        self._dbusservice_aux.add_path('/Mgmt/Connection', productname2 + ' service')
+
+        # Create the mandatory objects
+        self._dbusservice_aux.add_path('/DeviceInstance', deviceinstance2)
+        self._dbusservice_aux.add_path('/ProductId', 0xFFFF)
+        self._dbusservice_aux.add_path('/ProductName', productname2)
+        self._dbusservice_aux.add_path('/CustomName', productname2)
+        self._dbusservice_aux.add_path('/FirmwareVersion', '0.1')
+        # self._dbusservice.add_path('/HardwareVersion', '')
+        self._dbusservice_aux.add_path('/Connected', 1)
+
+        self._dbusservice_aux.add_path('/Latency', None)
+        self._dbusservice_aux.add_path('/ErrorCode', 0)
+        self._dbusservice_aux.add_path('/Position', position)
+        self._dbusservice_aux.add_path('/StatusCode', 0)  # Dummy path so VRM detects us as a PV-inverter
+
+        for path, settings in self._paths.items():
+            self._dbusservice_aux.add_path(
+                path,
+                settings['initial'],
+                gettextcallback = settings['textformat'],
+                writeable = True,
+                onchangecallback = self._handlechangedvalue
+                )
+
+        self._dbusservice_aux['/Ac/MaxPower'] = max_power2
 
         GLib.timeout_add(1000, self._update)
 
@@ -128,12 +177,29 @@ class DbusSdm120PvService:
 
     def _mqtt_on_message(self, client, userdata, message):
         try:
-             val = float(message.payload)
-             if message.topic == 'enphase/production/inverter_122327091421_production':
-                 self.east = val
-             elif message.topic == 'enphase/production/inverter_122327093955_production':
-                 self.west = val
-             logging.info("PV: %s=%s east=%f west=%f" % (message.topic, message.payload, self.east, self.west))
+            val = float(message.payload)
+            if message.topic == 'enphase/production/inverter_122327091421_production':
+                self.east = val
+            elif message.topic == 'enphase/production/inverter_122327093955_production':
+                self.west = val
+
+            a = self.west + self.east
+            self._dbusservice_aux['/Ac/Power'] = round(a, 2) if a is not None else None
+            self._dbusservice_aux['/Ac/L1/Power'] = round(a, 2) if a is not None else None
+
+            if self._dbusservice_aux['/Ac/Power'] is not None and self._dbusservice_aux['/Ac/Power'] >= 10:
+                if self._dbusservice_aux['/StatusCode'] != 7:
+                    self._dbusservice_aux['/StatusCode'] = 7 #running
+            else:
+                if self._dbusservice_aux['/StatusCode'] != 8:
+                    self._dbusservice_aux['/StatusCode'] = 8 #standby
+
+            index = self._dbusservice_aux['/UpdateIndex'] + 1
+            if index > 255:
+                index = 0
+            self._dbusservice_aux['/UpdateIndex'] = index
+
+            logging.info("PV: %s=%s east=%f west=%f" % (message.topic, message.payload, self.east, self.west))
         except Exception:
             exception_type, exception_object, exception_traceback = sys.exc_info()
             file = exception_traceback.tb_frame.f_code.co_filename
@@ -162,9 +228,6 @@ class DbusSdm120PvService:
             t = self._instrument.read_float(0x0156, 4, 2) #Total active
 
             i = i + self._offset
-
-            a = a + self.east + self.west
-            c = c + (self.east + self.west) / v
 
             logging.info("PV: {:.1f} W - {:.1f} V - {:.1f} A - {:.1f} Import".format(a, v, c, i))
 
@@ -231,8 +294,9 @@ def main():
         '/Ac/Current': {'initial': 0, 'textformat': _a},
         '/Ac/Voltage': {'initial': 0, 'textformat': _v},
         '/Ac/Energy/Forward': {'initial': None, 'textformat': _kwh},
+        '/Ac/Energy/Reverse': {'initial': None, 'textformat': _kwh},
 
-        '/Ac/MaxPower': {'initial': int(config['DEFAULT']['max_inverter_power']), 'textformat': _w},
+        '/Ac/MaxPower': {'initial': 0, 'textformat': _w},
         '/Ac/Position': {'initial': int(config['DEFAULT']['inverter_position']), 'textformat': _n},
         '/Ac/StatusCode': {'initial': 0, 'textformat': _n},
         '/UpdateIndex': {'initial': 0, 'textformat': _n},
@@ -254,6 +318,7 @@ def main():
         '/Ac/L2/Voltage': {'initial': None, 'textformat': _v},
         '/Ac/L2/Frequency': {'initial': None, 'textformat': _hz},
         '/Ac/L2/Energy/Forward': {'initial': None, 'textformat': _kwh},
+        '/Ac/L2/Energy/Reverse': {'initial': None, 'textformat': _kwh},
     })
 
     paths_dbus.update({
@@ -262,16 +327,18 @@ def main():
         '/Ac/L3/Voltage': {'initial': None, 'textformat': _v},
         '/Ac/L3/Frequency': {'initial': None, 'textformat': _hz},
         '/Ac/L3/Energy/Forward': {'initial': None, 'textformat': _kwh},
+        '/Ac/L3/Energy/Reverse': {'initial': None, 'textformat': _kwh},
     })
 
     DbusSdm120PvService(
-        servicename = 'com.victronenergy.pvinverter.sdm120_pv_' + config['DEFAULT']['device_instance'],
-        deviceinstance = int(config['DEFAULT']['device_instance']),
+        deviceinstance1 = int(config['DEFAULT']['device_instance_1']),
+        deviceinstance2 = int(config['DEFAULT']['device_instance_2']),
         paths = paths_dbus,
         serial_port = config['DEFAULT']['serial_port'],
-        #productname
-        customname = config['DEFAULT']['device_name'],
-        #connection
+        productname1 = config['DEFAULT']['device_name_1'],
+        productname2 = config['DEFAULT']['device_name_2'],
+        max_power1 = int(config['DEFAULT']['max_inverter_power_1']),
+        max_power2 = int(config['DEFAULT']['max_inverter_power_2']),
         position = int(config['DEFAULT']['inverter_position']),
         offset = float(config['DEFAULT']['meter_offset']),
         mqtt_host = config['DEFAULT']['mqtt_host'],
