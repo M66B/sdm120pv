@@ -8,6 +8,7 @@ import os
 import _thread
 import serial
 import configparser
+import json
 import dbus
 import dbus.service
 
@@ -157,9 +158,6 @@ class DbusSdm120PvService:
 
         GLib.timeout_add(1000, self._update)
 
-        self.east = 0
-        self.west = 0
-
         logging.info("MQTT: connecting")
         self._mqtt_client = paho.mqtt.client.Client('victron_pv')
         self._mqtt_client.tls_set(cert_reqs = ssl.CERT_NONE)
@@ -172,20 +170,31 @@ class DbusSdm120PvService:
 
     def _mqtt_on_connect(self, client, userdata, rc, args):
         logging.info("MQTT: connected")
-        self._mqtt_client.subscribe('enphase/production/inverter_122327091421_production')
-        self._mqtt_client.subscribe('enphase/production/inverter_122327093955_production')
+        self._mqtt_client.subscribe('zigbee2mqtt-vde194/schuur_pv_0xa4c1381013698826')
 
-    def _mqtt_on_message(self, client, userdata, message):
+    def _mqtt_on_message(self, client, userdata, msg):
         try:
-            val = float(message.payload)
-            if message.topic == 'enphase/production/inverter_122327091421_production':
-                self.east = val
-            elif message.topic == 'enphase/production/inverter_122327093955_production':
-                self.west = val
+            dmsg = str(msg.payload.decode("utf-8"))
+            if dmsg is None:
+                return
+            jmsg = json.loads(dmsg)
 
-            a = self.west + self.east
-            self._dbusservice_aux['/Ac/Power'] = round(a, 2) if a is not None else None
-            self._dbusservice_aux['/Ac/L1/Power'] = round(a, 2) if a is not None else None
+            #{
+            #  "current": 1.3,
+            #  "energy": 0,
+            #  "linkquality": 0,
+            #  "power": 294,
+            #  "produced_energy": null,
+            #  "state": "ON",
+            #  "voltage": 231.6
+            #}
+
+            self._dbusservice_aux['/Ac/Power'] = jmsg['power']
+            self._dbusservice_aux['/Ac/Current'] = jmsg['current']
+            self._dbusservice_aux['/Ac/Voltage'] = jmsg['voltage']
+            self._dbusservice_aux['/Ac/L1/Power'] = jmsg['power']
+            self._dbusservice_aux['/Ac/L1/Current'] = jmsg['current']
+            self._dbusservice_aux['/Ac/L1/Voltage'] = jmsg['voltage']
 
             if self._dbusservice_aux['/Ac/Power'] is not None and self._dbusservice_aux['/Ac/Power'] >= 10:
                 if self._dbusservice_aux['/StatusCode'] != 7:
@@ -199,7 +208,7 @@ class DbusSdm120PvService:
                 index = 0
             self._dbusservice_aux['/UpdateIndex'] = index
 
-            logging.info("PV: %s=%s east=%f west=%f" % (message.topic, message.payload, self.east, self.west))
+            logging.info("PV: %s=%s" % (msg.topic, msg.payload))
         except Exception:
             exception_type, exception_object, exception_traceback = sys.exc_info()
             file = exception_traceback.tb_frame.f_code.co_filename
