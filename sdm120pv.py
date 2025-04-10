@@ -159,6 +159,7 @@ class DbusSdm120PvService:
         GLib.timeout_add(1000, self._update)
 
         logging.info("MQTT: connecting")
+        #self._mqtt_client = paho.mqtt.client.Client('victron_pv')
         self._mqtt_client = paho.mqtt.client.Client(paho.mqtt.client.CallbackAPIVersion.VERSION1, 'victron_pv')
         self._mqtt_client.tls_set(cert_reqs = ssl.CERT_NONE)
         self._mqtt_client.tls_insecure_set(True)
