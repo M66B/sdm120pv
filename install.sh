@@ -4,7 +4,7 @@ chmod +x sdm120pv.py
 chmod +x service/run
 chmod +x service/log/run
 
-ln -s /data/etc/sdm120pv/service /opt/victronenergy/service/sdm120pv
+ln -s /data/etc/sdm120pv/service /service/sdm120pv
 
 #svstat /service/sdm120pv
 #tail -n 100 -f /data/log/sdm120pv/current | tai64nlocal
@@ -15,8 +15,8 @@ ln -s /data/etc/sdm120pv/service /opt/victronenergy/service/sdm120pv
 
 # nano /data/rc.local
 #!/bin/bash
+#ln -s /data/etc/sdm120pv/service /service/sdm120pv
 #mount -o remount,rw /
-ln -s /data/etc/sdm120pv/service /opt/victronenergy/service/sdm120pv
 #sed -i 's/^.*1a86.*/ACTION=="add", ENV{ID_BUS}=="usb", ENV{ID_MODEL}=="USB_Serial" ENV{VE_SERVICE}="ignore"/' /etc/udev/rules.d/serial-starter.rules
 #mount -o remount,ro /
 
