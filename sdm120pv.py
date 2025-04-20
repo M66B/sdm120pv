@@ -39,7 +39,7 @@ class DbusSdm120PvService:
         serial_port,
         productname1 = 'PV house',
         productname2 = 'PV barn',
-        max_power1 = 2400,
+        max_power1 = 3000,
         max_power2 = 600,
         position = 1,
         offset = 0.0,
@@ -273,6 +273,7 @@ class DbusSdm120PvService:
         if index > 255:
             index = 0
         self._dbusservice['/UpdateIndex'] = index
+
         return True
 
     def _handlechangedvalue(self, path, value):
